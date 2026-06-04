@@ -113,7 +113,11 @@ async def process_local_audio_file(message: types.Message, local_path: str, disp
         await message.answer(short_summary_text)
         
         # Зберігаємо повний звіт у файл та відправляємо його
-        report_file_name = f"Report_{os.path.splitext(display_name)[0]}.md"
+        clean_display_name = "".join(c for c in os.path.splitext(display_name)[0] if c not in '<>:"/\\|?*').strip()
+        if not clean_display_name:
+            clean_display_name = "meeting_summary"
+            
+        report_file_name = f"Report_{clean_display_name}.md"
         report_file_path = os.path.join(DOWNLOADS_DIR, report_file_name)
         
         with open(report_file_path, "w", encoding="utf-8") as f:
@@ -151,12 +155,21 @@ async def process_audio_message(message: types.Message, file_id: str, file_name:
         return
 
     status_msg = await message.answer("📥 **Завантажую аудіофайл з Telegram...** Будь ласка, зачекайте.")
-    local_path = os.path.join(DOWNLOADS_DIR, file_name)
+    
+    # Використовуємо безпечне ASCII ім'я для файлової системи Windows
+    orig_ext = os.path.splitext(file_name)[1].lower()
+    if not orig_ext or len(orig_ext) > 5:
+        orig_ext = ".mp3"
+        
+    # Створюємо коротку безпечну назву на основі file_id
+    safe_name = f"file_{file_id[-10:]}{orig_ext}"
+    local_path = os.path.join(DOWNLOADS_DIR, safe_name)
     os.makedirs(DOWNLOADS_DIR, exist_ok=True)
 
     try:
         file_info = await bot.get_file(file_id)
         await bot.download_file(file_info.file_path, local_path)
+        # Передаємо оригінальну назву (file_name) як display_name для Markdown звіту
         await process_local_audio_file(message, local_path, file_name, status_msg)
     except Exception as e:
         logger.error(f"Не вдалося завантажити файл з Telegram: {e}")

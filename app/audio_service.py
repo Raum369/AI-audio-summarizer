@@ -20,9 +20,23 @@ class AudioService:
         """
         Конвертує аудіо в MP3 формат.
         Підтримує .ogg (Telegram voice), .m4a (iPhone), .wav тощо.
+        Гарантує, що розширення підсумкового файлу буде строго в нижньому регістрі (.mp3).
         """
-        file_ext = os.path.splitext(input_path)[1].lower()
+        actual_ext = os.path.splitext(input_path)[1]
+        file_ext = actual_ext.lower()
+        
+        # Якщо файл уже має розширення mp3
         if file_ext == ".mp3":
+            # Але розширення записане великими літерами (наприклад, .Mp3 або .MP3)
+            if actual_ext != ".mp3":
+                output_path = os.path.splitext(input_path)[0] + ".mp3"
+                logger.info(f"Перейменовуємо файл для відповідності регістру: {input_path} -> {output_path}")
+                try:
+                    if os.path.exists(input_path):
+                        os.rename(input_path, output_path)
+                    return output_path
+                except Exception as e:
+                    logger.error(f"Помилка при перейменуванні файлу: {e}")
             return input_path
 
         output_path = os.path.splitext(input_path)[0] + ".mp3"
@@ -30,7 +44,6 @@ class AudioService:
 
         try:
             # Для pydub потрібен встановлений ffmpeg в системі. 
-            # Зазвичай на Windows він налаштований, але додамо обробку винятків.
             audio = AudioSegment.from_file(input_path)
             audio.export(output_path, format="mp3", bitrate="128k")
             
@@ -41,7 +54,15 @@ class AudioService:
             return output_path
         except Exception as e:
             logger.error(f"Помилка конвертації аудіо: {e}")
-            # Якщо ffmpeg немає, повертаємо оригінальний файл як є
+            # Якщо виникла помилка, перевіримо чи не треба хоча б перейменувати розширення оригінального файлу
+            if actual_ext != ".mp3":
+                fallback_path = os.path.splitext(input_path)[0] + ".mp3"
+                try:
+                    if os.path.exists(input_path):
+                        os.rename(input_path, fallback_path)
+                    return fallback_path
+                except Exception as rename_err:
+                    logger.error(f"Помилка при спробі аварійного перейменування: {rename_err}")
             return input_path
 
     @classmethod
