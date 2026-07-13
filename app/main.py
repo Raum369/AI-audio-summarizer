@@ -28,14 +28,13 @@ async def on_startup(app):
     if webhook_url:
         full_url = f"{webhook_url}{WEBHOOK_PATH}"
         logger.info(f"Встановлюю Webhook: {full_url}")
-        await bot.set_webhook(full_url, drop_pending_updates=True)
+        await bot.set_webhook(full_url)
     else:
         logger.warning("RENDER_EXTERNAL_URL не знайдено! Працюємо локально?")
 
 async def on_shutdown(app):
     """Викликається при вимкненні сервера."""
     logger.info("Shutting down...")
-    await bot.delete_webhook(drop_pending_updates=True)
     await bot.session.close()
 
 async def delayed_processing(update: types.Update):
