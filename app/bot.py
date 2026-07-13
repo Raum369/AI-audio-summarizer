@@ -57,9 +57,14 @@ async def help_handler(message: types.Message):
 async def process_local_audio_file(message: types.Message, local_path: str, display_name: str, status_msg: types.Message):
     """Ядро обробки аудіофайлу: конвертація, Whisper розпізнання, Llama аналіз."""
     mp3_path = None
+    report_file_path = None
     try:
         # 1. Конвертуємо у MP3 формат
-        await status_msg.edit_text("🎛️ **Оптимізую аудіоформат...**")
+        try:
+            await status_msg.edit_text("🎛️ **Оптимізую аудіоформат...**")
+        except Exception:
+            pass
+            
         mp3_path = AudioService.convert_to_mp3(local_path)
         
         # Видаляємо вихідний завантажений файл, якщо він відрізняється від mp3_path
@@ -67,23 +72,37 @@ async def process_local_audio_file(message: types.Message, local_path: str, disp
             os.remove(local_path)
             
         # 2. Розбиваємо на чанки, якщо файл великий
-        await status_msg.edit_text("✂️ **Перевіряю ліміти розміру файлу...**")
+        try:
+            await status_msg.edit_text("✂️ **Перевіряю ліміти розміру файлу...**")
+        except Exception:
+            pass
+            
         audio_chunks = AudioService.chunk_audio_if_needed(mp3_path)
         
         # 3. Транскрибуємо аудіо
-        await status_msg.edit_text(f"🎙️ **Розпізнаю мову (Groq Whisper)...**\n*Оброблено чанків: 0 з {len(audio_chunks)}*")
+        try:
+            await status_msg.edit_text(f"🎙️ **Розпізнаю мову (Groq Whisper)...**\n*Оброблено чанків: 0 з {len(audio_chunks)}*")
+        except Exception:
+            pass
         
         results = []
         for i, chunk in enumerate(audio_chunks):
             if i > 0:
-                await status_msg.edit_text(
-                    f"🎙️ **Розпізнаю мову (Groq Whisper)...**\n*Оброблено чанків: {i} з {len(audio_chunks)} (пауза 2с для лімітів API)*"
-                )
+                try:
+                    await status_msg.edit_text(
+                        f"🎙️ **Розпізнаю мову (Groq Whisper)...**\n*Оброблено чанків: {i} з {len(audio_chunks)} (пауза 2с для лімітів API)*"
+                    )
+                except Exception:
+                    pass
                 import asyncio
                 await asyncio.sleep(2)
                 
-            text = await transcribe_service.transcribe_file(chunk)
-            results.append(text)
+            try:
+                text = await transcribe_service.transcribe_file(chunk)
+                results.append(text)
+            except Exception as e:
+                logger.error(f"Транскрипція чанку {i} не вдалася: {e}")
+                results.append(f"\n[Помилка розпізнання частини {i+1}]\n")
             
             # Видаляємо чанк після розпізнання
             if os.path.exists(chunk):
@@ -92,15 +111,38 @@ async def process_local_audio_file(message: types.Message, local_path: str, disp
         full_transcript = "\n\n".join(results)
         
         if not full_transcript.strip():
-            await status_msg.edit_text("❌ Не вдалося розпізнати мову у файлі. Спробуйте інший запис.")
+            try:
+                await status_msg.edit_text("❌ Не вдалося розпізнати мову у файлі. Можливо, він порожній або надто тихий.")
+            except Exception:
+                pass
             return
 
         # 4. Аналізуємо текст через LLM
-        await status_msg.edit_text("🤖 **ШІ аналізує запис (Llama 3.3)...**\n*Формую конспект...*")
-        markdown_report = await ai_service.summarize_meeting(full_transcript)
-        
+        try:
+            await status_msg.edit_text("🤖 **ШІ аналізує запис (Llama 3.3)...**\n*Формую конспект...*")
+        except Exception:
+            pass
+            
+        try:
+            markdown_report = await ai_service.summarize_meeting(full_transcript)
+        except Exception as e:
+            logger.error(f"Помилка LLM: {e}")
+            try:
+                await status_msg.edit_text("❌ **Помилка під час аналізу тексту (Llama 3.3).** Можливо, текст завеликий або API тимчасово недоступний.")
+            except Exception:
+                pass
+            return
+            
+        if not markdown_report or not markdown_report.strip():
+            try:
+                await status_msg.edit_text("⚠️ Конспект виявився порожнім. Можливо, розмова була занадто короткою або не містила чіткої інформації.")
+            except Exception:
+                pass
+            return
+
         # 5. Зберігаємо повний звіт у файл та відправляємо його
-        clean_display_name = "".join(c for c in os.path.splitext(display_name)[0] if c not in '<>:"/\\|?*').strip()
+        import re
+        clean_display_name = re.sub(r'[^a-zA-Z0-9_\-а-яА-ЯіІїЇєЄ]', '_', os.path.splitext(display_name)[0]).strip('_')
         if not clean_display_name:
             clean_display_name = "meeting_summary"
             
@@ -110,26 +152,39 @@ async def process_local_audio_file(message: types.Message, local_path: str, disp
         with open(report_file_path, "w", encoding="utf-8") as f:
             f.write(markdown_report)
             
-        await message.answer_document(
-            types.FSInputFile(report_file_path, filename=report_file_name),
-            caption="📄 Повний конспект запису (Markdown-файл)"
-        )
+        try:
+            await message.answer_document(
+                types.FSInputFile(report_file_path, filename=report_file_name),
+                caption="📄 Повний конспект запису (Markdown-файл)"
+            )
+        except Exception as e:
+            logger.error(f"Помилка відправки файлу: {e}")
+            try:
+                await status_msg.edit_text("❌ **Не вдалося відправити файл з конспектом у чат.**")
+            except Exception:
+                pass
+            return
         
         # Видаляємо статус-повідомлення після успішної відправки
-        await status_msg.delete()
-        
-        if os.path.exists(report_file_path):
-            os.remove(report_file_path)
+        try:
+            await status_msg.delete()
+        except Exception:
+            pass
 
     except Exception as e:
         logger.error(f"Помилка при обробці аудіо-повідомлення: {e}")
-        await status_msg.edit_text("❌ **Виникла помилка під час обробки.**\nПеревірте логи бота.")
+        try:
+            await status_msg.edit_text("❌ **Виникла помилка під час обробки.**\nПеревірте логи бота.")
+        except Exception:
+            pass
     finally:
-        # Завжди чистимо mp3_path
+        # Завжди чистимо тимчасові файли
         if mp3_path and os.path.exists(mp3_path):
             os.remove(mp3_path)
         if os.path.exists(local_path):
             os.remove(local_path)
+        if report_file_path and os.path.exists(report_file_path):
+            os.remove(report_file_path)
 
 
 async def process_audio_message(message: types.Message, file_id: str, file_name: str, file_size: Optional[int] = None):
