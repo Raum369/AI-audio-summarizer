@@ -99,15 +99,7 @@ async def process_local_audio_file(message: types.Message, local_path: str, disp
         await status_msg.edit_text("🤖 **ШІ аналізує запис (Llama 3.3)...**\n*Формую конспект...*")
         markdown_report = await ai_service.summarize_meeting(full_transcript)
         
-        # 5. Відправляємо результат
-        await status_msg.delete()
-        
-        # Відправляємо результат
-        await status_msg.delete()
-        
-        # Ми більше не відправляємо текст просто в чат, щоб не було дублювання з md файлом.
-        
-        # Зберігаємо повний звіт у файл та відправляємо його
+        # 5. Зберігаємо повний звіт у файл та відправляємо його
         clean_display_name = "".join(c for c in os.path.splitext(display_name)[0] if c not in '<>:"/\\|?*').strip()
         if not clean_display_name:
             clean_display_name = "meeting_summary"
@@ -122,6 +114,9 @@ async def process_local_audio_file(message: types.Message, local_path: str, disp
             types.FSInputFile(report_file_path, filename=report_file_name),
             caption="📄 Повний конспект запису (Markdown-файл)"
         )
+        
+        # Видаляємо статус-повідомлення після успішної відправки
+        await status_msg.delete()
         
         if os.path.exists(report_file_path):
             os.remove(report_file_path)
