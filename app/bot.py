@@ -96,21 +96,17 @@ async def process_local_audio_file(message: types.Message, local_path: str, disp
             return
 
         # 4. Аналізуємо текст через LLM
-        await status_msg.edit_text("🤖 **ШІ аналізує стенограму (Llama 3.3)...**\n*Виділяю теми, рішення та завдання...*")
-        meeting_summary = await ai_service.summarize_meeting(full_transcript)
+        await status_msg.edit_text("🤖 **ШІ аналізує запис (Llama 3.3)...**\n*Формую конспект...*")
+        markdown_report = await ai_service.summarize_meeting(full_transcript)
         
-        # 5. Форматуємо результат
-        markdown_report = AIService.format_summary_to_markdown(meeting_summary)
-        
-        # 6. Відправляємо результат
+        # 5. Відправляємо результат
         await status_msg.delete()
         
-        short_summary_text = (
-            f"🎯 **Короткий огляд зустрічі (TL;DR):**\n{meeting_summary.summary}\n\n"
-            f"✅ **Кількість завдань (Action Items):** {len(meeting_summary.action_items)}\n"
-            f"🤝 **Прийнято рішень:** {len(meeting_summary.decisions)}"
-        )
-        await message.answer(short_summary_text)
+        # Відправляємо текст в Telegram, якщо він поміщається
+        if len(markdown_report) <= 4000:
+            await message.answer(markdown_report)
+        else:
+            await message.answer(markdown_report[:4000] + "\n\n*(Повний текст у прикріпленому файлі)*")
         
         # Зберігаємо повний звіт у файл та відправляємо його
         clean_display_name = "".join(c for c in os.path.splitext(display_name)[0] if c not in '<>:"/\\|?*').strip()
@@ -125,7 +121,7 @@ async def process_local_audio_file(message: types.Message, local_path: str, disp
             
         await message.answer_document(
             types.FSInputFile(report_file_path, filename=report_file_name),
-            caption="📄 Повний протокол зустрічі та завдання (Markdown-файл)"
+            caption="📄 Повний конспект запису (Markdown-файл)"
         )
         
         if os.path.exists(report_file_path):
