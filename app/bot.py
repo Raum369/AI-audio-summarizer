@@ -102,11 +102,10 @@ async def process_local_audio_file(message: types.Message, local_path: str, disp
         # 5. Відправляємо результат
         await status_msg.delete()
         
-        # Відправляємо текст в Telegram, якщо він поміщається
-        if len(markdown_report) <= 4000:
-            await message.answer(markdown_report)
-        else:
-            await message.answer(markdown_report[:4000] + "\n\n*(Повний текст у прикріпленому файлі)*")
+        # Відправляємо результат
+        await status_msg.delete()
+        
+        # Ми більше не відправляємо текст просто в чат, щоб не було дублювання з md файлом.
         
         # Зберігаємо повний звіт у файл та відправляємо його
         clean_display_name = "".join(c for c in os.path.splitext(display_name)[0] if c not in '<>:"/\\|?*').strip()
